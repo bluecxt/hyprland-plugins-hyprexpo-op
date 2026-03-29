@@ -61,19 +61,16 @@ void CSwipeGesture::begin(const ITrackpadGesture::STrackpadGestureBegin& e) {
 }
 
 void CSwipeGesture::update(const ITrackpadGesture::STrackpadGestureUpdate& e) {
-    if (g_pOverview) {
-        float    d    = distance(e);
-        Vector2D move = {0, 0};
-        if (m_dir == TRACKPAD_GESTURE_DIR_UP)
-            move.y = d;
-        else if (m_dir == TRACKPAD_GESTURE_DIR_DOWN)
-            move.y = -d;
-        else if (m_dir == TRACKPAD_GESTURE_DIR_LEFT)
-            move.x = d;
-        else if (m_dir == TRACKPAD_GESTURE_DIR_RIGHT)
-            move.x = -d;
-
-        g_pOverview->onNavigationSwipeUpdate(move);
+    if (g_pOverview && e.swipe) {
+        Vector2D delta = e.swipe->delta;
+        if (m_dir == TRACKPAD_GESTURE_DIR_LEFT || m_dir == TRACKPAD_GESTURE_DIR_RIGHT) {
+            delta.x *= 1.5; // Natural scrolling for X
+            delta.y = 0;
+        } else {
+            delta.y *= -1.5; // Inverted scrolling for Y
+            delta.x = 0;
+        }
+        g_pOverview->onNavigationSwipeUpdate(delta);
     }
 }
 
