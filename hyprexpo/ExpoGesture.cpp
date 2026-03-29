@@ -44,3 +44,29 @@ void CExpoGesture::end(const ITrackpadGesture::STrackpadGestureEnd& e) {
     g_pOverview->setClosing(false);
     g_pOverview->onSwipeEnd();
 }
+
+extern SDispatchResult onMoveActiveDispatcher(std::string arg);
+
+void CSwipeGesture::begin(const ITrackpadGesture::STrackpadGestureBegin& e) {
+    ITrackpadGesture::begin(e);
+    m_delta = 0.F;
+    m_dir   = e.direction;
+}
+
+void CSwipeGesture::update(const ITrackpadGesture::STrackpadGestureUpdate& e) {
+    m_delta += distance(e);
+}
+
+void CSwipeGesture::end(const ITrackpadGesture::STrackpadGestureEnd& e) {
+    if (m_delta < 50.F)
+        return;
+
+    std::string arg = "";
+    if (m_dir == TRACKPAD_GESTURE_DIR_UP) arg = "down";
+    else if (m_dir == TRACKPAD_GESTURE_DIR_DOWN) arg = "up";
+    else if (m_dir == TRACKPAD_GESTURE_DIR_LEFT) arg = "right";
+    else if (m_dir == TRACKPAD_GESTURE_DIR_RIGHT) arg = "left";
+
+    if (!arg.empty())
+        onMoveActiveDispatcher(arg);
+}

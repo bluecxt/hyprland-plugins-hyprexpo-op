@@ -119,15 +119,7 @@ static SDispatchResult onExpoDispatcher(std::string arg) {
     return {};
 }
 
-static SDispatchResult onMoveActiveDispatcher(std::string arg) {
-    if (g_pOverview && g_pOverview->m_isSwiping)
-        return {.success = false, .error = "already swiping"};
-
-    if (arg != "up" && arg != "down" && arg != "left" && arg != "right")
-        return {.success = false, .error = "invalid direction"};
-
-    // We need an overview instance to know the grid layout.
-    // If it doesn't exist, we create one briefly to calculate the target.
+static int64_t getTargetWorkspaceID(std::string arg) {
     bool wasOpen = (g_pOverview != nullptr);
     if (!wasOpen) {
         renderingOverview = true;
@@ -152,15 +144,36 @@ static SDispatchResult onMoveActiveDispatcher(std::string arg) {
     int     nextIndex = y * columns + x;
     int64_t targetID  = g_pOverview->images[nextIndex].workspaceID;
 
-    if (targetID == WORKSPACE_INVALID) {
-        // If the target tile is empty (can happen with skip_empty),
-        // fallback to the next empty workspace logic like in COverview::close()
+    if (targetID == WORKSPACE_INVALID)
         targetID = getWorkspaceIDNameFromString("emptynm").id;
-    }
 
-    // Changing the workspace will trigger COverview::onWorkspaceChange
-    // which will close the overview and zoom into the target workspace.
+    return targetID;
+}
+
+SDispatchResult onMoveActiveDispatcher(std::string arg) {
+    if (g_pOverview && g_pOverview->m_isSwiping)
+        return {.success = false, .error = "already swiping"};
+
+    if (arg != "up" && arg != "down" && arg != "left" && arg != "right")
+        return {.success = false, .error = "invalid direction"};
+
+    int64_t targetID = getTargetWorkspaceID(arg);
+
     CKeybindManager::changeworkspace(std::to_string(targetID));
+
+    return {};
+}
+
+static SDispatchResult onMoveWindowDispatcher(std::string arg) {
+    if (g_pOverview && g_pOverview->m_isSwiping)
+        return {.success = false, .error = "already swiping"};
+
+    if (arg != "up" && arg != "down" && arg != "left" && arg != "right")
+        return {.success = false, .error = "invalid direction"};
+
+    int64_t targetID = getTargetWorkspaceID(arg);
+
+    CKeybindManager::moveActiveToWorkspace(std::to_string(targetID));
 
     return {};
 }
@@ -235,6 +248,8 @@ static Hyprlang::CParseResult expoGestureKeyword(const char* LHS, const char* RH
 
     if (data[startDataIdx] == "expo")
         resultFromGesture = g_pTrackpadGestures->addGesture(makeUnique<CExpoGesture>(), fingerCount, direction, modMask, deltaScale, disableInhibit);
+    else if (data[startDataIdx] == "swipe")
+        resultFromGesture = g_pTrackpadGestures->addGesture(makeUnique<CSwipeGesture>(), fingerCount, direction, modMask, deltaScale, disableInhibit);
     else if (data[startDataIdx] == "unset")
         resultFromGesture = g_pTrackpadGestures->removeGesture(fingerCount, direction, modMask, deltaScale, disableInhibit);
     else {
@@ -302,6 +317,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprexpo:expo", ::onExpoDispatcher);
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprexpo:moveactive", ::onMoveActiveDispatcher);
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprexpo:movetoworkspace", ::onMoveWindowDispatcher);
 
     HyprlandAPI::addConfigKeyword(PHANDLE, KEYWORD_EXPO_GESTURE, ::expoGestureKeyword, {true});
 

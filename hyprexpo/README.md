@@ -34,13 +34,18 @@ gesture_distance | number | how far is the max for the gesture | `300`
 
 | name | description | arguments |
 | -- | -- | -- | 
-| hyprexpo-gesture | same as gesture, but for hyprexpo gestures. Supports: `expo`. | Same as gesture |
+| hyprexpo-gesture | gesture support for hyprexpo actions. | `fingers`, `direction`, `action` |
+
+**Actions supportées :**
+- `expo` : ouvre l'overview.
+- `swipe` : change de bureau suivant la grille 2D de HyprExpo avec bouclage (wrapping).
 
 ### Binding
 ```bash
 # hyprland.conf
 bind = MODIFIER, KEY, hyprexpo:expo, OPTION
 bind = MODIFIER, KEY, hyprexpo:moveactive, DIRECTION
+bind = MODIFIER, KEY, hyprexpo:movetoworkspace, DIRECTION
 ```
 
 Example:  
@@ -53,6 +58,12 @@ bind = SUPER, up,    hyprexpo:moveactive, up
 bind = SUPER, down,  hyprexpo:moveactive, down
 bind = SUPER, left,  hyprexpo:moveactive, left
 bind = SUPER, right, hyprexpo:moveactive, right
+
+# Move window in 2D grid
+bind = SUPER SHIFT, up,    hyprexpo:movetoworkspace, up
+bind = SUPER SHIFT, down,  hyprexpo:movetoworkspace, down
+bind = SUPER SHIFT, left,  hyprexpo:movetoworkspace, left
+bind = SUPER SHIFT, right, hyprexpo:movetoworkspace, right
 ```
 
 Here are a list of options for `hyprexpo:expo`:  
@@ -65,11 +76,11 @@ disable | same as `off`
 on | displays the overview
 enable | same as `on`
 
-Here are a list of options for `hyprexpo:moveactive`:  
+Here are a list of options for `hyprexpo:moveactive` and `hyprexpo:movetoworkspace`:  
 | direction | description |
 | --- | --- |
-up | moves the active workspace up in the grid
-down | moves the active workspace down in the grid
-left | moves the active workspace left in the grid
-right | moves the active workspace right in the grid
+up | moves the active workspace (or window) up in the grid
+down | moves the active workspace (or window) down in the grid
+left | moves the active workspace (or window) left in the grid
+right | moves the active workspace (or window) right in the grid
 
