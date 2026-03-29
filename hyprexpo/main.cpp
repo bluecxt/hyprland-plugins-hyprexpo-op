@@ -190,8 +190,8 @@ static Hyprlang::CParseResult expoGestureKeyword(const char* LHS, const char* RH
 
     CConstVarList             data(RHS);
 
-    size_t                    fingerCount = 0;
-    eTrackpadGestureDirection direction   = TRACKPAD_GESTURE_DIR_NONE;
+    size_t                                 fingerCount = 0;
+    std::vector<eTrackpadGestureDirection> directions;
 
     try {
         fingerCount = std::stoul(std::string{data[0]});
@@ -205,9 +205,20 @@ static Hyprlang::CParseResult expoGestureKeyword(const char* LHS, const char* RH
         return result;
     }
 
-    direction = g_pTrackpadGestures->dirForString(data[1]);
+    std::string dirStr = std::string{data[1]};
+    if (dirStr == "grid") {
+        directions = {TRACKPAD_GESTURE_DIR_UP, TRACKPAD_GESTURE_DIR_DOWN, TRACKPAD_GESTURE_DIR_LEFT, TRACKPAD_GESTURE_DIR_RIGHT};
+    } else if (dirStr == "horizontal") {
+        directions = {TRACKPAD_GESTURE_DIR_LEFT, TRACKPAD_GESTURE_DIR_RIGHT};
+    } else if (dirStr == "vertical") {
+        directions = {TRACKPAD_GESTURE_DIR_UP, TRACKPAD_GESTURE_DIR_DOWN};
+    } else {
+        eTrackpadGestureDirection direction = g_pTrackpadGestures->dirForString(data[1]);
+        if (direction != TRACKPAD_GESTURE_DIR_NONE)
+            directions.push_back(direction);
+    }
 
-    if (direction == TRACKPAD_GESTURE_DIR_NONE) {
+    if (directions.empty()) {
         result.setError(std::format("Invalid direction: {}", data[1]).c_str());
         return result;
     }
@@ -246,20 +257,22 @@ static Hyprlang::CParseResult expoGestureKeyword(const char* LHS, const char* RH
 
     std::expected<void, std::string> resultFromGesture;
 
-    if (data[startDataIdx] == "expo")
-        resultFromGesture = g_pTrackpadGestures->addGesture(makeUnique<CExpoGesture>(), fingerCount, direction, modMask, deltaScale, disableInhibit);
-    else if (data[startDataIdx] == "swipe")
-        resultFromGesture = g_pTrackpadGestures->addGesture(makeUnique<CSwipeGesture>(), fingerCount, direction, modMask, deltaScale, disableInhibit);
-    else if (data[startDataIdx] == "unset")
-        resultFromGesture = g_pTrackpadGestures->removeGesture(fingerCount, direction, modMask, deltaScale, disableInhibit);
-    else {
-        result.setError(std::format("Invalid gesture: {}", data[startDataIdx]).c_str());
-        return result;
-    }
+    for (auto& direction : directions) {
+        if (data[startDataIdx] == "expo")
+            resultFromGesture = g_pTrackpadGestures->addGesture(makeUnique<CExpoGesture>(), fingerCount, direction, modMask, deltaScale, disableInhibit);
+        else if (data[startDataIdx] == "swipe")
+            resultFromGesture = g_pTrackpadGestures->addGesture(makeUnique<CSwipeGesture>(), fingerCount, direction, modMask, deltaScale, disableInhibit);
+        else if (data[startDataIdx] == "unset")
+            resultFromGesture = g_pTrackpadGestures->removeGesture(fingerCount, direction, modMask, deltaScale, disableInhibit);
+        else {
+            result.setError(std::format("Invalid gesture: {}", data[startDataIdx]).c_str());
+            return result;
+        }
 
-    if (!resultFromGesture) {
-        result.setError(resultFromGesture.error().c_str());
-        return result;
+        if (!resultFromGesture) {
+            result.setError(resultFromGesture.error().c_str());
+            return result;
+        }
     }
 
     return result;
