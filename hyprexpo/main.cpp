@@ -164,7 +164,7 @@ SDispatchResult onMoveActiveDispatcher(std::string arg) {
     return {};
 }
 
-static SDispatchResult onMoveWindowDispatcher(std::string arg) {
+SDispatchResult onMoveWindowDispatcher(std::string arg) {
     if (g_pOverview && g_pOverview->m_isSwiping)
         return {.success = false, .error = "already swiping"};
 
