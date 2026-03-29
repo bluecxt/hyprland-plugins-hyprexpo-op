@@ -259,19 +259,24 @@ static Hyprlang::CParseResult expoGestureKeyword(const char* LHS, const char* RH
         break;
     }
 
+    std::string action = std::string{data[startDataIdx]};
+    action.erase(0, action.find_first_not_of(" "));
+    action.erase(action.find_last_not_of(" ") + 1);
+
     std::expected<void, std::string> resultFromGesture;
 
     for (auto& direction : directions) {
-        if (data[startDataIdx] == "expo")
+        if (action == "expo")
             resultFromGesture = g_pTrackpadGestures->addGesture(makeUnique<CExpoGesture>(), fingerCount, direction, modMask, deltaScale, disableInhibit);
-        else if (data[startDataIdx] == "swipe")
+        else if (action == "swipe")
             resultFromGesture = g_pTrackpadGestures->addGesture(makeUnique<CSwipeGesture>(), fingerCount, direction, modMask, deltaScale, disableInhibit);
-        else if (data[startDataIdx] == "unset")
+        else if (action == "unset")
             resultFromGesture = g_pTrackpadGestures->removeGesture(fingerCount, direction, modMask, deltaScale, disableInhibit);
         else {
-            result.setError(std::format("Invalid gesture: {}", data[startDataIdx]).c_str());
+            result.setError(std::format("Invalid gesture: {}", action).c_str());
             return result;
         }
+
 
         if (!resultFromGesture) {
             result.setError(resultFromGesture.error().c_str());
