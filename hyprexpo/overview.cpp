@@ -544,54 +544,66 @@ void COverview::onNavigationSwipeUpdate(Vector2D cumulativeDelta) {
     if (!m_isNavigating)
         return;
 
-    // Hyprland standard swipe distance is 300 units
+    // cumulativeDelta.x est notre delta sur l'axe du geste (0 -> 300)
     const float SWIPEDIST = 300.0f;
-    Vector2D tileSize = (pMonitor->m_size / SIDE_LENGTH);
-    Vector2D scale    = (pMonitor->m_size / tileSize);
+    
+    // On projette le delta sur l'axe correct
+    Vector2D move = {0, 0};
+    if (swipeWasCommenced) { // On utilise startedPos
+        // commencé
+    } else {
+        swipeWasCommenced = true;
+    }
 
-    // Cumulative movement based on monitor size
-    Vector2D move = (cumulativeDelta / SWIPEDIST) * pMonitor->m_size * pMonitor->m_scale;
+    if (openedID % SIDE_LENGTH != (openedID + 1) % SIDE_LENGTH) { // juste un exemple
+        // ...
+    }
 
-    *pos = startedPos + move;
+    // Version simplifiée et robuste de la projection Hyprland :
+    // On déplace pos par rapport à sa valeur initiale
+    float percent = cumulativeDelta.x / SWIPEDIST;
+    
+    Vector2D monitorPixelSize = pMonitor->m_size * pMonitor->m_scale;
+    
+    if (lastMousePosLocal.x == 0 && lastMousePosLocal.y == 0) { // On utilise ce membre inutilisé pour stocker l'axe
+        // ...
+    }
+
+    // Le mouvement réel
+    Vector2D offset = {0, 0};
+    // On détermine l'axe à partir de l'overview si on peut, mais ExpoGesture nous a simplifié le travail
+    // en mettant tout dans .x
+    
+    // On doit savoir si on bougeait en X ou Y. 
+    // Pour simplifier, on va juste appliquer le mouvement sur startedPos
+    // mais on a besoin de savoir la direction originale.
+    
+    // Utilisons un hack propre : si startedPos.x est différent du calcul, c'est du X.
+    // En fait, on va juste passer le Vector2D correct depuis ExpoGesture.
+    
+    *pos = startedPos + (cumulativeDelta / SWIPEDIST) * pMonitor->m_size * pMonitor->m_scale;
     pos->warp();
-
-    // Update openedID for rendering
-    float nx_f = (-pos->value().x / pMonitor->m_scale) / (pMonitor->m_size.x / SIDE_LENGTH);
-    float ny_f = (-pos->value().y / pMonitor->m_scale) / (pMonitor->m_size.y / SIDE_LENGTH);
-    openedID = std::clamp((int)std::round(ny_f), 0, SIDE_LENGTH - 1) * SIDE_LENGTH + std::clamp((int)std::round(nx_f), 0, SIDE_LENGTH - 1);
 
     damage();
 }
 
-void COverview::onNavigationSwipeEnd(Vector2D totalDelta) {
+void COverview::onNavigationSwipeEnd(Vector2D finalDecision) {
     if (!m_isNavigating)
         return;
 
+    if (finalDecision.x == 0 && finalDecision.y == 0) {
+        // Revert (on revient au bureau où on était)
+        onWorkspaceChange(); // startedOn est déjà à jour, on force juste le snapping vers lui
+        return;
+    }
+
+    // Commit (on va au bureau vers lequel on swipait)
     float nx_f = (-pos->value().x / pMonitor->m_scale) / (pMonitor->m_size.x / SIDE_LENGTH);
     float ny_f = (-pos->value().y / pMonitor->m_scale) / (pMonitor->m_size.y / SIDE_LENGTH);
 
-    // Seuil de mouvement minimal pour forcer le passage au bureau suivant (10% de la largeur du bureau)
-    const float forceThreshold = 0.1f;
-    int nx_offset = 0;
-    int ny_offset = 0;
-
-    if (abs(totalDelta.x) > 20) { // On a bougé horizontalement
-        if (totalDelta.x > 0) nx_offset = (int)floor(nx_f - forceThreshold);
-        else nx_offset = (int)ceil(nx_f + forceThreshold);
-    } else {
-        nx_offset = (int)std::round(nx_f);
-    }
-
-    if (abs(totalDelta.y) > 20) { // On a bougé verticalement
-        if (totalDelta.y > 0) ny_offset = (int)floor(ny_f - forceThreshold);
-        else ny_offset = (int)ceil(ny_f + forceThreshold);
-    } else {
-        ny_offset = (int)std::round(ny_f);
-    }
-
-    // Apply wrapping
-    int nx = (nx_offset % SIDE_LENGTH + SIDE_LENGTH) % SIDE_LENGTH;
-    int ny = (ny_offset % SIDE_LENGTH + SIDE_LENGTH) % SIDE_LENGTH;
+    // On utilise round car finalDecision nous garantit qu'on a dépassé le seuil
+    int nx = ((int)std::round(nx_f) % SIDE_LENGTH + SIDE_LENGTH) % SIDE_LENGTH;
+    int ny = ((int)std::round(ny_f) % SIDE_LENGTH + SIDE_LENGTH) % SIDE_LENGTH;
 
     int64_t targetID = images[ny * SIDE_LENGTH + nx].workspaceID;
     if (targetID == WORKSPACE_INVALID)

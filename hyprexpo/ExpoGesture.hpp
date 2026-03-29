@@ -28,5 +28,7 @@ class CSwipeGesture : public ITrackpadGesture {
   private:
     float                     m_delta      = 0.F;
     eTrackpadGestureDirection m_dir        = TRACKPAD_GESTURE_DIR_NONE;
-    Vector2D                  m_totalDelta = {0, 0};
+    double                    m_cumulativeDelta = 0;
+    double                    m_avgSpeed   = 0;
+    int                       m_speedPoints = 0;
 };
