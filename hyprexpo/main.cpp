@@ -190,6 +190,11 @@ static Hyprlang::CParseResult expoGestureKeyword(const char* LHS, const char* RH
 
     CConstVarList             data(RHS);
 
+    if (data.size() < 3) {
+        result.setError("hyprexpo-gesture: not enough arguments (expected 3: fingers, direction, action)");
+        return result;
+    }
+
     size_t                                 fingerCount = 0;
     std::vector<eTrackpadGestureDirection> directions;
 
@@ -268,7 +273,7 @@ static Hyprlang::CParseResult expoGestureKeyword(const char* LHS, const char* RH
     for (auto& direction : directions) {
         if (action == "expo")
             resultFromGesture = g_pTrackpadGestures->addGesture(makeUnique<CExpoGesture>(), fingerCount, direction, modMask, deltaScale, disableInhibit);
-        else if (action == "swipe")
+        else if (action == "swipe" || action == "workspace")
             resultFromGesture = g_pTrackpadGestures->addGesture(makeUnique<CSwipeGesture>(), fingerCount, direction, modMask, deltaScale, disableInhibit);
         else if (action == "unset")
             resultFromGesture = g_pTrackpadGestures->removeGesture(fingerCount, direction, modMask, deltaScale, disableInhibit);
