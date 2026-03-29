@@ -65,13 +65,12 @@ void CSwipeGesture::update(const ITrackpadGesture::STrackpadGestureUpdate& e) {
     if (g_pOverview && e.swipe) {
         Vector2D delta = e.swipe->delta;
         if (m_dir == TRACKPAD_GESTURE_DIR_LEFT || m_dir == TRACKPAD_GESTURE_DIR_RIGHT) {
-            delta.x *= -1.5; // Flipped X as requested
+            delta.x *= 1.5;
             delta.y = 0;
         } else {
-            delta.y *= -1.5;
+            delta.y *= 1.5;
             delta.x = 0;
         }
-        m_totalDelta += delta;
         g_pOverview->onNavigationSwipeUpdate(delta);
     }
 }
