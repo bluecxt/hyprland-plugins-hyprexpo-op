@@ -178,42 +178,44 @@ SDispatchResult onMoveWindowDispatcher(std::string arg) {
     return {};
 }
 
+#include <cstring>
+
 static void failNotif(const std::string& reason) {
     HyprlandAPI::addNotification(PHANDLE, "[hyprexpo] Failure in initialization: " + reason, CHyprColor{1.0, 0.2, 0.2, 1.0}, 5000);
 }
 
-static Hyprlang::CParseResult expoGestureKeyword(const char* LHS, const char* RHS) {
+static Hyprlang::CParseResult expoGestureKeyword(const char* COMMAND, const char* VALUE) {
     Hyprlang::CParseResult result;
+    std::string            LHS = COMMAND;
+    std::string            RHS = VALUE;
 
     if (g_unloading)
         return result;
 
-    CConstVarList             data(RHS);
+    Log::logger->log(Log::INFO, "[hyprexpo] parsing gesture: LHS: \"{}\", RHS: \"{}\"", LHS, RHS);
 
-    if (data.size() < 3) {
-        result.setError("hyprexpo-gesture: not enough arguments (expected 3: fingers, direction, action)");
-        return result;
-    }
-
+    CConstVarList                          data(RHS);
     size_t                                 fingerCount = 0;
     std::vector<eTrackpadGestureDirection> directions;
 
+    if (data.size() < 3) {
+        result.setError("hyprexpo-gesture: not enough arguments (expected: fingers, direction, action)");
+        return result;
+    }
+
+    // 1. Finger count
     try {
-        fingerCount = std::stoul(std::string{data[0]});
+        std::string s = std::string(data[0]);
+        s.erase(remove_if(s.begin(), s.end(), isspace), s.end());
+        fingerCount = std::stoul(s);
     } catch (...) {
-        result.setError(std::format("Invalid value {} for finger count", data[0]).c_str());
+        result.setError(std::format("hyprexpo-gesture: invalid finger count \"{}\"", std::string(data[0])).c_str());
         return result;
     }
 
-    if (fingerCount <= 1 || fingerCount >= 10) {
-        result.setError(std::format("Invalid value {} for finger count", data[0]).c_str());
-        return result;
-    }
-
-    std::string dirStr = std::string{data[1]};
-    // Trim spaces if any
-    dirStr.erase(0, dirStr.find_first_not_of(" "));
-    dirStr.erase(dirStr.find_last_not_of(" ") + 1);
+    // 2. Direction
+    std::string dirStr = std::string(data[1]);
+    dirStr.erase(remove_if(dirStr.begin(), dirStr.end(), isspace), dirStr.end());
 
     if (dirStr == "grid") {
         directions = {TRACKPAD_GESTURE_DIR_UP, TRACKPAD_GESTURE_DIR_DOWN, TRACKPAD_GESTURE_DIR_LEFT, TRACKPAD_GESTURE_DIR_RIGHT};
@@ -228,67 +230,59 @@ static Hyprlang::CParseResult expoGestureKeyword(const char* LHS, const char* RH
     }
 
     if (directions.empty()) {
-        result.setError(std::format("Invalid direction: {}", data[1]).c_str());
+        result.setError(std::format("hyprexpo-gesture: invalid direction \"{}\"", dirStr).c_str());
         return result;
     }
 
-    int      startDataIdx   = 2;
+    // 3. Action and Options
     uint32_t modMask        = 0;
     float    deltaScale     = 1.F;
     bool     disableInhibit = false;
+    int      idx            = 2;
 
-    for (const auto arg : std::string(LHS).substr(KEYWORD_EXPO_GESTURE.size())) {
-        switch (arg) {
-            case 'p': disableInhibit = true; break;
-            default: result.setError("hyprexpo-gesture: invalid flag"); return result;
-        }
-    }
+    // Check for flags in LHS (e.g. hyprexpo-gesturep)
+    if (LHS.find('p') != std::string::npos && LHS.size() > KEYWORD_EXPO_GESTURE.size())
+        disableInhibit = true;
 
-    while (true) {
+    while (idx < (int)data.size()) {
+        std::string arg = std::string(data[idx]);
+        arg.erase(remove_if(arg.begin(), arg.end(), isspace), arg.end());
 
-        if (data[startDataIdx].starts_with("mod:")) {
-            modMask = g_pKeybindManager->stringToModMask(std::string{data[startDataIdx].substr(4)});
-            startDataIdx++;
+        if (arg.starts_with("mod:")) {
+            modMask = g_pKeybindManager->stringToModMask(arg.substr(4));
+            idx++;
             continue;
-        } else if (data[startDataIdx].starts_with("scale:")) {
+        } else if (arg.starts_with("scale:")) {
             try {
-                deltaScale = std::clamp(std::stof(std::string{data[startDataIdx].substr(6)}), 0.1F, 10.F);
-                startDataIdx++;
+                deltaScale = std::clamp(std::stof(arg.substr(6)), 0.1F, 10.F);
+                idx++;
                 continue;
             } catch (...) {
-                result.setError(std::format("Invalid delta scale: {}", std::string{data[startDataIdx].substr(6)}).c_str());
+                result.setError("hyprexpo-gesture: invalid scale");
                 return result;
             }
-        }
+        } else {
+            // C'est l'action (swipe, workspace, expo)
+            if (arg == "expo" || arg == "swipe" || arg == "workspace") {
+                std::expected<void, std::string> res;
+                for (auto& d : directions) {
+                    if (arg == "expo")
+                        res = g_pTrackpadGestures->addGesture(makeUnique<CExpoGesture>(), fingerCount, d, modMask, deltaScale, disableInhibit);
+                    else
+                        res = g_pTrackpadGestures->addGesture(makeUnique<CSwipeGesture>(), fingerCount, d, modMask, deltaScale, disableInhibit);
 
-        break;
+                    if (!res) {
+                        result.setError(res.error().c_str());
+                        return result;
+                    }
+                }
+                return result; // Success!
+            }
+        }
+        idx++;
     }
 
-    std::string action = std::string{data[startDataIdx]};
-    action.erase(0, action.find_first_not_of(" "));
-    action.erase(action.find_last_not_of(" ") + 1);
-
-    std::expected<void, std::string> resultFromGesture;
-
-    for (auto& direction : directions) {
-        if (action == "expo")
-            resultFromGesture = g_pTrackpadGestures->addGesture(makeUnique<CExpoGesture>(), fingerCount, direction, modMask, deltaScale, disableInhibit);
-        else if (action == "swipe" || action == "workspace")
-            resultFromGesture = g_pTrackpadGestures->addGesture(makeUnique<CSwipeGesture>(), fingerCount, direction, modMask, deltaScale, disableInhibit);
-        else if (action == "unset")
-            resultFromGesture = g_pTrackpadGestures->removeGesture(fingerCount, direction, modMask, deltaScale, disableInhibit);
-        else {
-            result.setError(std::format("Invalid gesture: {}", action).c_str());
-            return result;
-        }
-
-
-        if (!resultFromGesture) {
-            result.setError(resultFromGesture.error().c_str());
-            return result;
-        }
-    }
-
+    result.setError("hyprexpo-gesture: no valid action found (expo, swipe, workspace)");
     return result;
 }
 
