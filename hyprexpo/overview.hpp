@@ -75,6 +75,7 @@ class COverview {
 
     PHLANIMVAR<Vector2D>         size;
     PHLANIMVAR<Vector2D>         pos;
+    Vector2D                     startedPos;
 
     bool                         closing = false;
 

@@ -212,6 +212,7 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_, bool navigation_) : s
     }
 
     openedID = currentid;
+    startedPos = pos->value();
 
     Cursor::overrideController->setOverride("left_ptr", Cursor::CURSOR_OVERRIDE_UNKNOWN);
 
@@ -539,17 +540,24 @@ void COverview::onSwipeEnd() {
     m_isSwiping       = false;
 }
 
-void COverview::onNavigationSwipeUpdate(Vector2D delta) {
+void COverview::onNavigationSwipeUpdate(Vector2D cumulativeDelta) {
     if (!m_isNavigating)
         return;
 
-    *pos = pos->value() + delta * pMonitor->m_scale;
+    // Hyprland standard swipe distance is 300 units
+    const float SWIPEDIST = 300.0f;
+    Vector2D tileSize = (pMonitor->m_size / SIDE_LENGTH);
+    Vector2D scale    = (pMonitor->m_size / tileSize);
+
+    // Cumulative movement based on monitor size
+    Vector2D move = (cumulativeDelta / SWIPEDIST) * pMonitor->m_size * pMonitor->m_scale;
+
+    *pos = startedPos + move;
     pos->warp();
 
-    // Update openedID to the most visible workspace so that onPreRender redraws the right one if damaged.
+    // Update openedID for rendering
     float nx_f = (-pos->value().x / pMonitor->m_scale) / (pMonitor->m_size.x / SIDE_LENGTH);
     float ny_f = (-pos->value().y / pMonitor->m_scale) / (pMonitor->m_size.y / SIDE_LENGTH);
-
     openedID = std::clamp((int)std::round(ny_f), 0, SIDE_LENGTH - 1) * SIDE_LENGTH + std::clamp((int)std::round(nx_f), 0, SIDE_LENGTH - 1);
 
     damage();
