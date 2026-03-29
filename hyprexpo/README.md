@@ -40,15 +40,22 @@ gesture_distance | number | how far is the max for the gesture | `300`
 ```bash
 # hyprland.conf
 bind = MODIFIER, KEY, hyprexpo:expo, OPTION
+bind = MODIFIER, KEY, hyprexpo:moveactive, DIRECTION
 ```
 
 Example:  
 ```bash
 # This will toggle HyprExpo when SUPER+g is pressed
 bind = SUPER, g, hyprexpo:expo, toggle
+
+# Keyboard navigation (2D grid)
+bind = SUPER, up,    hyprexpo:moveactive, up
+bind = SUPER, down,  hyprexpo:moveactive, down
+bind = SUPER, left,  hyprexpo:moveactive, left
+bind = SUPER, right, hyprexpo:moveactive, right
 ```
 
-Here are a list of options you can use:  
+Here are a list of options for `hyprexpo:expo`:  
 | option | description |
 | --- | --- |
 toggle | displays if hidden, hide if displayed
@@ -57,4 +64,12 @@ off | hides the overview
 disable | same as `off`
 on | displays the overview
 enable | same as `on`
+
+Here are a list of options for `hyprexpo:moveactive`:  
+| direction | description |
+| --- | --- |
+up | moves the active workspace up in the grid
+down | moves the active workspace down in the grid
+left | moves the active workspace left in the grid
+right | moves the active workspace right in the grid
 

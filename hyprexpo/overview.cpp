@@ -26,7 +26,7 @@ COverview::~COverview() {
     g_pHyprOpenGL->markBlurDirtyForMonitor(pMonitor.lock());
 }
 
-COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_) : startedOn(startedOn_), swipe(swipe_) {
+COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_, bool navigation_) : startedOn(startedOn_), swipe(swipe_), m_isNavigating(navigation_) {
     const auto PMONITOR = Desktop::focusState()->monitor();
     pMonitor            = PMONITOR;
 
@@ -197,7 +197,13 @@ COverview::COverview(PHLWORKSPACE startedOn_, bool swipe_) : startedOn(startedOn
     size->setUpdateCallback(damageMonitor);
     pos->setUpdateCallback(damageMonitor);
 
-    if (!swipe) {
+    if (m_isNavigating) {
+        *size = pMonitor->m_size * pMonitor->m_size / tileSize;
+        *pos  = (-((pMonitor->m_size / (double)SIDE_LENGTH) * Vector2D{currentid % SIDE_LENGTH, currentid / SIDE_LENGTH}) * pMonitor->m_scale) *
+            (pMonitor->m_size / tileSize);
+        size->warp();
+        pos->warp();
+    } else if (!swipe) {
         *size = pMonitor->m_size;
         *pos  = {0, 0};
 
@@ -422,8 +428,27 @@ void COverview::onWorkspaceChange() {
     }
 
     closeOnID = openedID;
-    if (!closing)
+
+    if (m_isNavigating) {
+        // En mode navigation, on met à jour le bureau de départ pour éviter que 
+        // redrawID ne nous ramène sur l'ancien bureau à chaque frame.
+        if (valid(startedOn))
+            startedOn->m_visible = false;
+        
+        startedOn = pMonitor->m_activeWorkspace;
+        startedOn->m_visible = true;
+
+        // On ne fait que glisser la position.
+        Vector2D tileSize = (pMonitor->m_size / SIDE_LENGTH);
+        *pos = (-((pMonitor->m_size / (double)SIDE_LENGTH) * Vector2D{openedID % SIDE_LENGTH, openedID / SIDE_LENGTH}) * pMonitor->m_scale) * (pMonitor->m_size / tileSize);
+        
+        // On détruit l'overview une fois le glissement terminé.
+        pos->setCallbackOnEnd([this](auto) { 
+            g_pEventLoopManager->doLater([] { g_pOverview.reset(); }); 
+        });
+    } else if (!closing) {
         close();
+    }
 }
 
 void COverview::render() {

@@ -17,7 +17,7 @@ class CMonitor;
 
 class COverview {
   public:
-    COverview(PHLWORKSPACE startedOn_, bool swipe = false);
+    COverview(PHLWORKSPACE startedOn_, bool swipe = false, bool navigation = false);
     ~COverview();
 
     void render();
@@ -40,6 +40,7 @@ class COverview {
 
     PHLMONITORREF pMonitor;
     bool          m_isSwiping = false;
+    bool          m_isNavigating = false;
 
   private:
     void       redrawID(int id, bool forcelowres = false);

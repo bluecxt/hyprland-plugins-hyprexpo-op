@@ -1,6 +1,17 @@
 #define WLR_USE_UNSTABLE
 
 #include <unistd.h>
+#include <chrono>
+#include <string>
+#include <vector>
+#include <memory>
+#include <expected>
+#include <format>
+#include <any>
+
+#define private public
+#include <hyprland/src/managers/KeybindManager.hpp>
+#undef private
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/state/FocusState.hpp>
@@ -16,14 +27,16 @@
 using namespace Hyprutils::String;
 
 #include "globals.hpp"
+#define private public
 #include "overview.hpp"
+#undef private
 #include "ExpoGesture.hpp"
 
 // Methods
 inline CFunctionHook* g_pRenderWorkspaceHook = nullptr;
 inline CFunctionHook* g_pAddDamageHookA      = nullptr;
 inline CFunctionHook* g_pAddDamageHookB      = nullptr;
-typedef void (*origRenderWorkspace)(void*, PHLMONITOR, PHLWORKSPACE, timespec*, const CBox&);
+typedef void (*origRenderWorkspace)(void*, PHLMONITOR, PHLWORKSPACE, std::chrono::steady_clock::time_point, const CBox&);
 typedef void (*origAddDamageA)(void*, const CBox&);
 typedef void (*origAddDamageB)(void*, const pixman_region32_t*);
 
@@ -39,8 +52,8 @@ static bool       renderingOverview = false;
 const std::string KEYWORD_EXPO_GESTURE = "hyprexpo-gesture";
 
 //
-static void hkRenderWorkspace(void* thisptr, PHLMONITOR pMonitor, PHLWORKSPACE pWorkspace, timespec* now, const CBox& geometry) {
-    if (!g_pOverview || renderingOverview || g_pOverview->blockOverviewRendering || g_pOverview->pMonitor != pMonitor)
+static void hkRenderWorkspace(void* thisptr, PHLMONITOR pMonitor, PHLWORKSPACE pWorkspace, std::chrono::steady_clock::time_point now, const CBox& geometry) {
+    if (!g_pOverview || renderingOverview || g_pOverview->blockOverviewRendering || g_pOverview->pMonitor.lock() != pMonitor)
         ((origRenderWorkspace)(g_pRenderWorkspaceHook->m_original))(thisptr, pMonitor, pWorkspace, now, geometry);
     else
         g_pOverview->render();
@@ -103,6 +116,52 @@ static SDispatchResult onExpoDispatcher(std::string arg) {
     renderingOverview = true;
     g_pOverview       = std::make_unique<COverview>(Desktop::focusState()->monitor()->m_activeWorkspace);
     renderingOverview = false;
+    return {};
+}
+
+static SDispatchResult onMoveActiveDispatcher(std::string arg) {
+    if (g_pOverview && g_pOverview->m_isSwiping)
+        return {.success = false, .error = "already swiping"};
+
+    if (arg != "up" && arg != "down" && arg != "left" && arg != "right")
+        return {.success = false, .error = "invalid direction"};
+
+    // We need an overview instance to know the grid layout.
+    // If it doesn't exist, we create one briefly to calculate the target.
+    bool wasOpen = (g_pOverview != nullptr);
+    if (!wasOpen) {
+        renderingOverview = true;
+        g_pOverview       = std::make_unique<COverview>(Desktop::focusState()->monitor()->m_activeWorkspace, false, true);
+        renderingOverview = false;
+    }
+
+    int columns      = g_pOverview->SIDE_LENGTH;
+    int currentIndex = g_pOverview->openedID;
+    int x            = currentIndex % columns;
+    int y            = currentIndex / columns;
+
+    if (arg == "up")
+        y = (y - 1 + columns) % columns;
+    else if (arg == "down")
+        y = (y + 1) % columns;
+    else if (arg == "left")
+        x = (x - 1 + columns) % columns;
+    else if (arg == "right")
+        x = (x + 1) % columns;
+
+    int     nextIndex = y * columns + x;
+    int64_t targetID  = g_pOverview->images[nextIndex].workspaceID;
+
+    if (targetID == WORKSPACE_INVALID) {
+        // If the target tile is empty (can happen with skip_empty),
+        // fallback to the next empty workspace logic like in COverview::close()
+        targetID = getWorkspaceIDNameFromString("emptynm").id;
+    }
+
+    // Changing the workspace will trigger COverview::onWorkspaceChange
+    // which will close the overview and zoom into the target workspace.
+    CKeybindManager::changeworkspace(std::to_string(targetID));
+
     return {};
 }
 
@@ -242,6 +301,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     });
 
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprexpo:expo", ::onExpoDispatcher);
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprexpo:moveactive", ::onMoveActiveDispatcher);
 
     HyprlandAPI::addConfigKeyword(PHANDLE, KEYWORD_EXPO_GESTURE, ::expoGestureKeyword, {true});
 
