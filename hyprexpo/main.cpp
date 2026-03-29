@@ -206,6 +206,10 @@ static Hyprlang::CParseResult expoGestureKeyword(const char* LHS, const char* RH
     }
 
     std::string dirStr = std::string{data[1]};
+    // Trim spaces if any
+    dirStr.erase(0, dirStr.find_first_not_of(" "));
+    dirStr.erase(dirStr.find_last_not_of(" ") + 1);
+
     if (dirStr == "grid") {
         directions = {TRACKPAD_GESTURE_DIR_UP, TRACKPAD_GESTURE_DIR_DOWN, TRACKPAD_GESTURE_DIR_LEFT, TRACKPAD_GESTURE_DIR_RIGHT};
     } else if (dirStr == "horizontal") {
@@ -213,7 +217,7 @@ static Hyprlang::CParseResult expoGestureKeyword(const char* LHS, const char* RH
     } else if (dirStr == "vertical") {
         directions = {TRACKPAD_GESTURE_DIR_UP, TRACKPAD_GESTURE_DIR_DOWN};
     } else {
-        eTrackpadGestureDirection direction = g_pTrackpadGestures->dirForString(data[1]);
+        eTrackpadGestureDirection direction = g_pTrackpadGestures->dirForString(dirStr);
         if (direction != TRACKPAD_GESTURE_DIR_NONE)
             directions.push_back(direction);
     }
