@@ -49,8 +49,6 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
 
 bool              renderingOverview = false;
 
-const std::string KEYWORD_EXPO_GESTURE = "hyprexpo-gesture";
-
 //
 static void hkRenderWorkspace(void* thisptr, PHLMONITOR pMonitor, PHLWORKSPACE pWorkspace, std::chrono::steady_clock::time_point now, const CBox& geometry) {
     if (!g_pOverview || renderingOverview || g_pOverview->blockOverviewRendering || g_pOverview->pMonitor.lock() != pMonitor)
@@ -178,112 +176,8 @@ SDispatchResult onMoveWindowDispatcher(std::string arg) {
     return {};
 }
 
-#include <cstring>
-
 static void failNotif(const std::string& reason) {
     HyprlandAPI::addNotification(PHANDLE, "[hyprexpo] Failure in initialization: " + reason, CHyprColor{1.0, 0.2, 0.2, 1.0}, 5000);
-}
-
-static Hyprlang::CParseResult expoGestureKeyword(const char* COMMAND, const char* VALUE) {
-    Hyprlang::CParseResult result;
-    std::string            LHS = COMMAND;
-    std::string            RHS = VALUE;
-
-    if (g_unloading)
-        return result;
-
-    Log::logger->log(Log::INFO, "[hyprexpo] parsing gesture: LHS: \"{}\", RHS: \"{}\"", LHS, RHS);
-
-    CConstVarList                          data(RHS);
-    size_t                                 fingerCount = 0;
-    std::vector<eTrackpadGestureDirection> directions;
-
-    if (data.size() < 3) {
-        result.setError("hyprexpo-gesture: not enough arguments (expected: fingers, direction, action)");
-        return result;
-    }
-
-    // 1. Finger count
-    try {
-        std::string s = std::string(data[0]);
-        s.erase(remove_if(s.begin(), s.end(), isspace), s.end());
-        fingerCount = std::stoul(s);
-    } catch (...) {
-        result.setError(std::format("hyprexpo-gesture: invalid finger count \"{}\"", std::string(data[0])).c_str());
-        return result;
-    }
-
-    // 2. Direction
-    std::string dirStr = std::string(data[1]);
-    dirStr.erase(remove_if(dirStr.begin(), dirStr.end(), isspace), dirStr.end());
-
-    if (dirStr == "grid") {
-        directions = {TRACKPAD_GESTURE_DIR_UP, TRACKPAD_GESTURE_DIR_DOWN, TRACKPAD_GESTURE_DIR_LEFT, TRACKPAD_GESTURE_DIR_RIGHT};
-    } else if (dirStr == "horizontal") {
-        directions = {TRACKPAD_GESTURE_DIR_LEFT, TRACKPAD_GESTURE_DIR_RIGHT};
-    } else if (dirStr == "vertical") {
-        directions = {TRACKPAD_GESTURE_DIR_UP, TRACKPAD_GESTURE_DIR_DOWN};
-    } else {
-        eTrackpadGestureDirection direction = g_pTrackpadGestures->dirForString(dirStr);
-        if (direction != TRACKPAD_GESTURE_DIR_NONE)
-            directions.push_back(direction);
-    }
-
-    if (directions.empty()) {
-        result.setError(std::format("hyprexpo-gesture: invalid direction \"{}\"", dirStr).c_str());
-        return result;
-    }
-
-    // 3. Action and Options
-    uint32_t modMask        = 0;
-    float    deltaScale     = 1.F;
-    bool     disableInhibit = false;
-    int      idx            = 2;
-
-    // Check for flags in LHS (e.g. hyprexpo-gesturep)
-    if (LHS.find('p') != std::string::npos && LHS.size() > KEYWORD_EXPO_GESTURE.size())
-        disableInhibit = true;
-
-    while (idx < (int)data.size()) {
-        std::string arg = std::string(data[idx]);
-        arg.erase(remove_if(arg.begin(), arg.end(), isspace), arg.end());
-
-        if (arg.starts_with("mod:")) {
-            modMask = g_pKeybindManager->stringToModMask(arg.substr(4));
-            idx++;
-            continue;
-        } else if (arg.starts_with("scale:")) {
-            try {
-                deltaScale = std::clamp(std::stof(arg.substr(6)), 0.1F, 10.F);
-                idx++;
-                continue;
-            } catch (...) {
-                result.setError("hyprexpo-gesture: invalid scale");
-                return result;
-            }
-        } else {
-            // C'est l'action (swipe, workspace, expo)
-            if (arg == "expo" || arg == "swipe" || arg == "workspace") {
-                std::expected<void, std::string> res;
-                for (auto& d : directions) {
-                    if (arg == "expo")
-                        res = g_pTrackpadGestures->addGesture(makeUnique<CExpoGesture>(), fingerCount, d, modMask, deltaScale, disableInhibit);
-                    else
-                        res = g_pTrackpadGestures->addGesture(makeUnique<CSwipeGesture>(), fingerCount, d, modMask, deltaScale, disableInhibit);
-
-                    if (!res) {
-                        result.setError(res.error().c_str());
-                        return result;
-                    }
-                }
-                return result; // Success!
-            }
-        }
-        idx++;
-    }
-
-    result.setError("hyprexpo-gesture: no valid action found (expo, swipe, workspace)");
-    return result;
 }
 
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
@@ -339,8 +233,6 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprexpo:expo", ::onExpoDispatcher);
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprexpo:moveactive", ::onMoveActiveDispatcher);
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprexpo:movetoworkspace", ::onMoveWindowDispatcher);
-
-    HyprlandAPI::addConfigKeyword(PHANDLE, KEYWORD_EXPO_GESTURE, ::expoGestureKeyword, {true});
 
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprexpo:columns", Hyprlang::INT{3});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprexpo:gap_size", Hyprlang::INT{5});
