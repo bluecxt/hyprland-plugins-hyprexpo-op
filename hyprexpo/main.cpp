@@ -47,7 +47,7 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
     return HYPRLAND_API_VERSION;
 }
 
-static bool       renderingOverview = false;
+bool              renderingOverview = false;
 
 const std::string KEYWORD_EXPO_GESTURE = "hyprexpo-gesture";
 

@@ -11,6 +11,7 @@
 #include <hyprland/src/managers/cursor/CursorShapeOverrideController.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
+#include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 #undef private
 #include "OverviewPassElement.hpp"
@@ -536,4 +537,30 @@ void COverview::onSwipeEnd() {
 
     swipeWasCommenced = false;
     m_isSwiping       = false;
+}
+
+void COverview::onNavigationSwipeUpdate(Vector2D delta) {
+    if (!m_isNavigating)
+        return;
+
+    *pos = pos->value() + delta * pMonitor->m_scale;
+    pos->warp();
+    damage();
+}
+
+void COverview::onNavigationSwipeEnd() {
+    if (!m_isNavigating)
+        return;
+
+    float nx_f = (-pos->value().x / pMonitor->m_scale) / (pMonitor->m_size.x / SIDE_LENGTH);
+    float ny_f = (-pos->value().y / pMonitor->m_scale) / (pMonitor->m_size.y / SIDE_LENGTH);
+
+    int nx = std::clamp((int)std::round(nx_f), 0, SIDE_LENGTH - 1);
+    int ny = std::clamp((int)std::round(ny_f), 0, SIDE_LENGTH - 1);
+
+    int64_t targetID = images[ny * SIDE_LENGTH + nx].workspaceID;
+    if (targetID == WORKSPACE_INVALID)
+        targetID = getWorkspaceIDNameFromString("emptynm").id;
+
+    CKeybindManager::changeworkspace(std::to_string(targetID));
 }

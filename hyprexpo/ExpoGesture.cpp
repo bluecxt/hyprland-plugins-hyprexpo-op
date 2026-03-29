@@ -46,27 +46,38 @@ void CExpoGesture::end(const ITrackpadGesture::STrackpadGestureEnd& e) {
 }
 
 extern SDispatchResult onMoveActiveDispatcher(std::string arg);
+extern bool            renderingOverview;
 
 void CSwipeGesture::begin(const ITrackpadGesture::STrackpadGestureBegin& e) {
     ITrackpadGesture::begin(e);
     m_delta = 0.F;
     m_dir   = e.direction;
+
+    if (!g_pOverview) {
+        renderingOverview = true;
+        g_pOverview       = std::make_unique<COverview>(Desktop::focusState()->monitor()->m_activeWorkspace, false, true);
+        renderingOverview = false;
+    }
 }
 
 void CSwipeGesture::update(const ITrackpadGesture::STrackpadGestureUpdate& e) {
-    m_delta += distance(e);
+    if (g_pOverview) {
+        float    d    = distance(e);
+        Vector2D move = {0, 0};
+        if (m_dir == TRACKPAD_GESTURE_DIR_UP)
+            move.y = d;
+        else if (m_dir == TRACKPAD_GESTURE_DIR_DOWN)
+            move.y = -d;
+        else if (m_dir == TRACKPAD_GESTURE_DIR_LEFT)
+            move.x = d;
+        else if (m_dir == TRACKPAD_GESTURE_DIR_RIGHT)
+            move.x = -d;
+
+        g_pOverview->onNavigationSwipeUpdate(move);
+    }
 }
 
 void CSwipeGesture::end(const ITrackpadGesture::STrackpadGestureEnd& e) {
-    if (m_delta < 50.F)
-        return;
-
-    std::string arg = "";
-    if (m_dir == TRACKPAD_GESTURE_DIR_UP) arg = "down";
-    else if (m_dir == TRACKPAD_GESTURE_DIR_DOWN) arg = "up";
-    else if (m_dir == TRACKPAD_GESTURE_DIR_LEFT) arg = "right";
-    else if (m_dir == TRACKPAD_GESTURE_DIR_RIGHT) arg = "left";
-
-    if (!arg.empty())
-        onMoveActiveDispatcher(arg);
+    if (g_pOverview)
+        g_pOverview->onNavigationSwipeEnd();
 }

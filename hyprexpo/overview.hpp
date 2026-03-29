@@ -31,6 +31,9 @@ class COverview {
     void onSwipeUpdate(double delta);
     void onSwipeEnd();
 
+    void onNavigationSwipeUpdate(Vector2D delta);
+    void onNavigationSwipeEnd();
+
     // close without a selection
     void          close();
     void          selectHoveredWorkspace();
