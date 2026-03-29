@@ -26,6 +26,7 @@ class CSwipeGesture : public ITrackpadGesture {
     virtual void end(const ITrackpadGesture::STrackpadGestureEnd& e);
 
   private:
-    float                     m_delta = 0.F;
-    eTrackpadGestureDirection m_dir   = TRACKPAD_GESTURE_DIR_NONE;
+    float                     m_delta      = 0.F;
+    eTrackpadGestureDirection m_dir        = TRACKPAD_GESTURE_DIR_NONE;
+    Vector2D                  m_totalDelta = {0, 0};
 };

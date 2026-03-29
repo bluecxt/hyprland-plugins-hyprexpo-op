@@ -32,7 +32,7 @@ class COverview {
     void onSwipeEnd();
 
     void onNavigationSwipeUpdate(Vector2D delta);
-    void onNavigationSwipeEnd();
+    void onNavigationSwipeEnd(Vector2D totalDelta);
 
     // close without a selection
     void          close();

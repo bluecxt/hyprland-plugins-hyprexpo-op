@@ -545,22 +545,52 @@ void COverview::onNavigationSwipeUpdate(Vector2D delta) {
 
     *pos = pos->value() + delta * pMonitor->m_scale;
     pos->warp();
+
+    // Update openedID to the most visible workspace so that onPreRender redraws the right one if damaged.
+    float nx_f = (-pos->value().x / pMonitor->m_scale) / (pMonitor->m_size.x / SIDE_LENGTH);
+    float ny_f = (-pos->value().y / pMonitor->m_scale) / (pMonitor->m_size.y / SIDE_LENGTH);
+
+    openedID = std::clamp((int)std::round(ny_f), 0, SIDE_LENGTH - 1) * SIDE_LENGTH + std::clamp((int)std::round(nx_f), 0, SIDE_LENGTH - 1);
+
     damage();
 }
 
-void COverview::onNavigationSwipeEnd() {
+void COverview::onNavigationSwipeEnd(Vector2D totalDelta) {
     if (!m_isNavigating)
         return;
 
     float nx_f = (-pos->value().x / pMonitor->m_scale) / (pMonitor->m_size.x / SIDE_LENGTH);
     float ny_f = (-pos->value().y / pMonitor->m_scale) / (pMonitor->m_size.y / SIDE_LENGTH);
 
-    int nx = std::clamp((int)std::round(nx_f), 0, SIDE_LENGTH - 1);
-    int ny = std::clamp((int)std::round(ny_f), 0, SIDE_LENGTH - 1);
+    // Seuil de mouvement minimal pour forcer le passage au bureau suivant (10% de la largeur du bureau)
+    const float forceThreshold = 0.1f;
+    int nx_offset = 0;
+    int ny_offset = 0;
+
+    if (abs(totalDelta.x) > 20) { // On a bougé horizontalement
+        if (totalDelta.x > 0) nx_offset = (int)floor(nx_f - forceThreshold);
+        else nx_offset = (int)ceil(nx_f + forceThreshold);
+    } else {
+        nx_offset = (int)std::round(nx_f);
+    }
+
+    if (abs(totalDelta.y) > 20) { // On a bougé verticalement
+        if (totalDelta.y > 0) ny_offset = (int)floor(ny_f - forceThreshold);
+        else ny_offset = (int)ceil(ny_f + forceThreshold);
+    } else {
+        ny_offset = (int)std::round(ny_f);
+    }
+
+    // Apply wrapping
+    int nx = (nx_offset % SIDE_LENGTH + SIDE_LENGTH) % SIDE_LENGTH;
+    int ny = (ny_offset % SIDE_LENGTH + SIDE_LENGTH) % SIDE_LENGTH;
 
     int64_t targetID = images[ny * SIDE_LENGTH + nx].workspaceID;
     if (targetID == WORKSPACE_INVALID)
         targetID = getWorkspaceIDNameFromString("emptynm").id;
 
-    CKeybindManager::changeworkspace(std::to_string(targetID));
+    if (targetID == pMonitor->activeWorkspaceID())
+        onWorkspaceChange();
+    else
+        CKeybindManager::changeworkspace(std::to_string(targetID));
 }

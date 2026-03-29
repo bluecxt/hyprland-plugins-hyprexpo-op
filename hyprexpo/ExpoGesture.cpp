@@ -50,8 +50,9 @@ extern bool            renderingOverview;
 
 void CSwipeGesture::begin(const ITrackpadGesture::STrackpadGestureBegin& e) {
     ITrackpadGesture::begin(e);
-    m_delta = 0.F;
-    m_dir   = e.direction;
+    m_delta      = 0.F;
+    m_dir        = e.direction;
+    m_totalDelta = {0, 0};
 
     if (!g_pOverview) {
         renderingOverview = true;
@@ -64,17 +65,18 @@ void CSwipeGesture::update(const ITrackpadGesture::STrackpadGestureUpdate& e) {
     if (g_pOverview && e.swipe) {
         Vector2D delta = e.swipe->delta;
         if (m_dir == TRACKPAD_GESTURE_DIR_LEFT || m_dir == TRACKPAD_GESTURE_DIR_RIGHT) {
-            delta.x *= 1.5; // Natural scrolling for X
+            delta.x *= -1.5; // Flipped X as requested
             delta.y = 0;
         } else {
-            delta.y *= -1.5; // Inverted scrolling for Y
+            delta.y *= -1.5;
             delta.x = 0;
         }
+        m_totalDelta += delta;
         g_pOverview->onNavigationSwipeUpdate(delta);
     }
 }
 
 void CSwipeGesture::end(const ITrackpadGesture::STrackpadGestureEnd& e) {
     if (g_pOverview)
-        g_pOverview->onNavigationSwipeEnd();
+        g_pOverview->onNavigationSwipeEnd(m_totalDelta);
 }
