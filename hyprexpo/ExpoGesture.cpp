@@ -50,11 +50,12 @@ extern bool            renderingOverview;
 
 void CSwipeGesture::begin(const ITrackpadGesture::STrackpadGestureBegin& e) {
     ITrackpadGesture::begin(e);
-    m_delta           = 0.F;
-    m_dir             = e.direction;
-    m_cumulativeDelta = 0;
-    m_avgSpeed        = 0;
-    m_speedPoints     = 0;
+    m_delta            = 0.F;
+    m_dir              = e.direction;
+    m_cumulativeDelta  = 0;
+    m_avgSpeed         = 0;
+    m_speedPoints      = 0;
+    m_initialDirection = 0;
 
     if (!g_pOverview) {
         renderingOverview = true;
@@ -67,20 +68,20 @@ void CSwipeGesture::update(const ITrackpadGesture::STrackpadGestureUpdate& e) {
     if (!g_pOverview || !e.swipe)
         return;
 
-    static auto PSWIPEDIST = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_distance");
-    static auto PSWIPEINVR = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_invert");
+    static auto  PSWIPEDIST             = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_distance");
+    static auto  PSWIPEINVR              = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_invert");
+    static auto  PSWIPEDIRLOCK          = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_direction_lock");
+    static auto  PSWIPEDIRLOCKTHRESHOLD = CConfigValue<Hyprlang::INT>("gestures:workspace_swipe_direction_lock_threshold");
 
-    const auto  SWIPEDISTANCE = std::clamp(*PSWIPEDIST, (int64_t)1, (int64_t)UINT32_MAX);
+    const auto   SWIPEDISTANCE = std::clamp(*PSWIPEDIST, (int64_t)1, (int64_t)UINT32_MAX);
 
-    // Get movement in the direction of the gesture
-    float       d = 0;
+    float        delta_rel = 0;
     if (m_dir == TRACKPAD_GESTURE_DIR_LEFT || m_dir == TRACKPAD_GESTURE_DIR_RIGHT)
-        d = e.swipe->delta.x;
+        delta_rel = e.swipe->delta.x;
     else
-        d = e.swipe->delta.y;
+        delta_rel = e.swipe->delta.y;
 
-    if (*PSWIPEINVR)
-        d *= -1.0;
+    const double d = (*PSWIPEINVR ? -delta_rel : delta_rel);
 
     m_avgSpeed = (m_avgSpeed * m_speedPoints + abs(d)) / (m_speedPoints + 1);
     m_speedPoints++;
@@ -88,13 +89,21 @@ void CSwipeGesture::update(const ITrackpadGesture::STrackpadGestureUpdate& e) {
     m_cumulativeDelta += d;
     m_cumulativeDelta = std::clamp(m_cumulativeDelta, (double)-SWIPEDISTANCE, (double)SWIPEDISTANCE);
 
-    Vector2D cumulativeVector = {0, 0};
-    if (m_dir == TRACKPAD_GESTURE_DIR_LEFT || m_dir == TRACKPAD_GESTURE_DIR_RIGHT)
-        cumulativeVector.x = m_cumulativeDelta;
-    else
-        cumulativeVector.y = m_cumulativeDelta;
+    if (*PSWIPEDIRLOCK) {
+        if (m_initialDirection != 0 && m_initialDirection != (m_cumulativeDelta < 0 ? -1 : 1))
+            m_cumulativeDelta = 0;
+        else if (m_initialDirection == 0 && abs(m_cumulativeDelta) > *PSWIPEDIRLOCKTHRESHOLD)
+            m_initialDirection = m_cumulativeDelta < 0 ? -1 : 1;
+    }
 
-    g_pOverview->onNavigationSwipeUpdate(cumulativeVector);
+    // On suit le décalage de rendu natif : -m_cumulativeDelta
+    Vector2D move = {0, 0};
+    if (m_dir == TRACKPAD_GESTURE_DIR_LEFT || m_dir == TRACKPAD_GESTURE_DIR_RIGHT)
+        move.x = -m_cumulativeDelta;
+    else
+        move.y = -m_cumulativeDelta;
+
+    g_pOverview->onNavigationSwipeUpdate(move);
 }
 
 void CSwipeGesture::end(const ITrackpadGesture::STrackpadGestureEnd& e) {
@@ -108,7 +117,6 @@ void CSwipeGesture::end(const ITrackpadGesture::STrackpadGestureEnd& e) {
     const auto  SWIPEDISTANCE = std::clamp(*PSWIPEDIST, (int64_t)1, (int64_t)UINT32_MAX);
 
     bool        commit = true;
-
     if ((abs(m_cumulativeDelta) < SWIPEDISTANCE * *PSWIPEPERC && (*PSWIPEFORC == 0 || m_avgSpeed < *PSWIPEFORC)) || abs(m_cumulativeDelta) < 2) {
         commit = false;
     }
@@ -116,9 +124,9 @@ void CSwipeGesture::end(const ITrackpadGesture::STrackpadGestureEnd& e) {
     Vector2D finalDecision = {0, 0};
     if (commit) {
         if (m_dir == TRACKPAD_GESTURE_DIR_LEFT || m_dir == TRACKPAD_GESTURE_DIR_RIGHT)
-            finalDecision.x = m_cumulativeDelta > 0 ? 100 : -100; // Sign indicates direction
+            finalDecision.x = m_cumulativeDelta < 0 ? -100 : 100; // Sign indicates target side
         else
-            finalDecision.y = m_cumulativeDelta > 0 ? 100 : -100;
+            finalDecision.y = m_cumulativeDelta < 0 ? -100 : 100;
     }
 
     g_pOverview->onNavigationSwipeEnd(finalDecision);

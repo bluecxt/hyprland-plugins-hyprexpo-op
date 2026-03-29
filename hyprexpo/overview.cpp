@@ -593,7 +593,7 @@ void COverview::onNavigationSwipeEnd(Vector2D finalDecision) {
 
     if (finalDecision.x == 0 && finalDecision.y == 0) {
         // Revert (on revient au bureau où on était)
-        onWorkspaceChange(); // startedOn est déjà à jour, on force juste le snapping vers lui
+        onWorkspaceChange(); 
         return;
     }
 
@@ -601,9 +601,20 @@ void COverview::onNavigationSwipeEnd(Vector2D finalDecision) {
     float nx_f = (-pos->value().x / pMonitor->m_scale) / (pMonitor->m_size.x / SIDE_LENGTH);
     float ny_f = (-pos->value().y / pMonitor->m_scale) / (pMonitor->m_size.y / SIDE_LENGTH);
 
-    // On utilise round car finalDecision nous garantit qu'on a dépassé le seuil
-    int nx = ((int)std::round(nx_f) % SIDE_LENGTH + SIDE_LENGTH) % SIDE_LENGTH;
-    int ny = ((int)std::round(ny_f) % SIDE_LENGTH + SIDE_LENGTH) % SIDE_LENGTH;
+    int nx_offset = 0;
+    int ny_offset = 0;
+
+    if (finalDecision.x < 0) nx_offset = (int)ceil(nx_f);
+    else if (finalDecision.x > 0) nx_offset = (int)floor(nx_f);
+    else nx_offset = (int)std::round(nx_f);
+
+    if (finalDecision.y < 0) ny_offset = (int)ceil(ny_f);
+    else if (finalDecision.y > 0) ny_offset = (int)floor(ny_f);
+    else ny_offset = (int)std::round(ny_f);
+
+    // No wrapping, just clamping to the grid edges
+    int nx = std::clamp(nx_offset, 0, SIDE_LENGTH - 1);
+    int ny = std::clamp(ny_offset, 0, SIDE_LENGTH - 1);
 
     int64_t targetID = images[ny * SIDE_LENGTH + nx].workspaceID;
     if (targetID == WORKSPACE_INVALID)
